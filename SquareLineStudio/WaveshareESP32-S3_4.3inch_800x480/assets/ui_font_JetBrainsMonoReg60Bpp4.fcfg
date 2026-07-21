@@ -1,0 +1,16 @@
+{
+  "codename": "JetBrainsMonoReg60Bpp4",
+  "ttf_path": "/assets/JetBrainsMono-Regular.ttf",
+  "bin_path": "/assets\\ui_font_JetBrainsMonoReg60Bpp4.bin",
+  "c_path": "/assets\\ui_font_JetBrainsMonoReg60Bpp4.c",
+  "cfg_path": "/assets\\ui_font_JetBrainsMonoReg60Bpp4.fcfg",
+  "size": 60,
+  "bpp": 4,
+  "letters": 0,
+  "ranges": [
+    "0x20-0x7f"
+  ],
+  "symbols": "",
+  "customparams": "--no-compress --no-prefilter",
+  "uploaded": false
+}

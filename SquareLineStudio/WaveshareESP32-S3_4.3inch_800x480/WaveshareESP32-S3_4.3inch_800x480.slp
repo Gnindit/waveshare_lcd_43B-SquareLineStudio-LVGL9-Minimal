@@ -1,0 +1,12 @@
+{
+    "uiExportFolderPath": "D:\\SquareLineStudio\\waveshare_lcd_43B-SquareLineStudio-LVGL9\\src\\ui",
+    "projectExportFolderPath": "D:\\SquareLineStudio\\waveshare_lcd_43B-SquareLineStudio-LVGL9\\SquareLineStudio\\WaveshareESP32-S3_4.3inch_800x480",
+    "drive_stdio": "-",
+    "drive_stdio_path": "",
+    "drive_posix": "-",
+    "drive_posix_path": "",
+    "drive_win32": "-",
+    "drive_win32_path": "",
+    "drive_fatfs": "-",
+    "drive_fatfs_path": ""
+}

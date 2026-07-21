@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Git Snapshot Commit",
+      "type": "shell",
+      "command": "$stamp = Get-Date -Format 'yyyy-MM-dd HH:mm'; $msg = 'snapshot: ' + $stamp; git add -A; git diff --cached --quiet; if ($LASTEXITCODE -eq 0) { Write-Host 'No changes to commit'; exit 0 }; git commit -m $msg",
+      "problemMatcher": [],
+      "options": {
+        "shell": {
+          "executable": "powershell",
+          "args": [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command"
+          ]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Git Snapshot Commit + Push",
+      "type": "shell",
+      "command": "$stamp = Get-Date -Format 'yyyy-MM-dd HH:mm'; $msg = 'snapshot: ' + $stamp; git add -A; git diff --cached --quiet; if ($LASTEXITCODE -eq 0) { Write-Host 'No changes to commit'; exit 0 }; git commit -m $msg; if ($LASTEXITCODE -eq 0) { git push }",
+      "problemMatcher": [],
+      "options": {
+        "shell": {
+          "executable": "powershell",
+          "args": [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command"
+          ]
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    }
+  ]
+}
