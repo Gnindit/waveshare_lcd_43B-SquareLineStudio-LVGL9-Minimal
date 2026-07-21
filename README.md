@@ -6,7 +6,7 @@ PlatformIO project initializing the touch panel and display for a Waveshare ESP3
 ![MainScreen image](docs/Dashboardimage.png)
 ![Screen2 image](docs/Gauges.png)
 
-To change things on the screen the Square line studio project is included. When you have changed things in Square line studio then make sure it exports to src/ui/ then recompile and send to display. This project was made in VSCode (1.129.1) with PlatformIO (3.3.4).
+To change things on the screen the Square line studio project is included. When you have changed things in Square line studio then make sure it exports to src/ui/ then recompile and send to display. Comport is set in platformio.ini. This project was made in VSCode (1.129.1) with PlatformIO (3.3.4).
 To help with the coding you can use VSCode together with GitHub Copilot for a few dollars.
 
 ## Code Overview

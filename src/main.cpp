@@ -34,6 +34,25 @@ static SemaphoreHandle_t sem_gui_ready;
 // LVGL is not thread-safe, so every LVGL call in background tasks uses this lock.
 static _lock_t lvgl_api_lock;
 
+static volatile int8_t pending_swipe_dir = 0;
+
+static void process_pending_swipe_navigation()
+{
+    int8_t dir = pending_swipe_dir;
+    if (dir == 0) {
+        return;
+    }
+
+    pending_swipe_dir = 0;
+
+    lv_obj_t *active_screen = lv_screen_active();
+    if (dir < 0 && active_screen == ui_scr_main) {
+        lv_screen_load_anim(ui_scr_gauges1, LV_SCR_LOAD_ANIM_MOVE_LEFT, 220, 0, false);
+    } else if (dir > 0 && active_screen == ui_scr_gauges1) {
+        lv_screen_load_anim(ui_scr_main, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 220, 0, false);
+    }
+}
+
 static void i2c_initialize()
 {
     i2c_master_bus_config_t i2c_mst_config;
@@ -79,7 +98,7 @@ static void lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_ma
     const int offsety2 = area->y2;
 
     xSemaphoreGive(sem_gui_ready);
-    xSemaphoreTake(sem_vsync_end, portMAX_DELAY);
+    (void)xSemaphoreTake(sem_vsync_end, pdMS_TO_TICKS(30));
 
     esp_lcd_panel_draw_bitmap(lcd_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
     lv_display_flush_ready(disp);
@@ -94,6 +113,7 @@ static void lcd_lvgl_task(void *arg)
 
         _lock_acquire(&lvgl_api_lock);
         time_till_next_ms = lv_timer_handler();
+        process_pending_swipe_navigation();
         _lock_release(&lvgl_api_lock);
 
         if (time_till_next_ms == LV_NO_TIMER_READY) {
@@ -106,7 +126,11 @@ static void lcd_lvgl_task(void *arg)
             time_till_next_ms = 5;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(time_till_next_ms));
+        TickType_t delay_ticks = pdMS_TO_TICKS(time_till_next_ms);
+        if (delay_ticks == 0) {
+            delay_ticks = 1;
+        }
+        vTaskDelay(delay_ticks);
     }
 }
 
@@ -230,6 +254,9 @@ static void my_input_read(lv_indev_t *indev, lv_indev_data_t *data)
 
     static uint16_t last_x = 0;
     static uint16_t last_y = 0;
+    static uint16_t swipe_start_x = 0;
+    static uint16_t swipe_start_y = 0;
+    static bool touch_was_pressed = false;
 
     uint16_t x[5], y[5], s[5];
     uint8_t count = 0;
@@ -246,11 +273,31 @@ static void my_input_read(lv_indev_t *indev, lv_indev_data_t *data)
         last_x = x[0];
         last_y = y[0];
 
+        if (!touch_was_pressed) {
+            swipe_start_x = x[0];
+            swipe_start_y = y[0];
+            touch_was_pressed = true;
+        }
+
         data->point.x = x[0];
         data->point.y = y[0];
         data->state = LV_INDEV_STATE_PRESSED;
         data->continue_reading = false;
         return;
+    }
+
+    if (touch_was_pressed) {
+        int32_t dx = (int32_t)last_x - (int32_t)swipe_start_x;
+        int32_t dy = (int32_t)last_y - (int32_t)swipe_start_y;
+        int32_t abs_dx = dx >= 0 ? dx : -dx;
+        int32_t abs_dy = dy >= 0 ? dy : -dy;
+
+        // Detect intentional horizontal swipes and ignore mostly vertical drags.
+        if (abs_dx > 80 && abs_dx > (abs_dy + 20)) {
+            pending_swipe_dir = (dx > 0) ? 1 : -1;
+        }
+
+        touch_was_pressed = false;
     }
 
     data->point.x = last_x;
@@ -300,10 +347,61 @@ static void touch_reset()
     ESP_ERROR_CHECK(i2c_master_bus_rm_device(i2c));
 }
 
+static void enable_gesture_bubble_recursive(lv_obj_t *obj)
+{
+    if (obj == NULL) {
+        return;
+    }
+
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_GESTURE_BUBBLE);
+
+    uint32_t child_count = lv_obj_get_child_count(obj);
+    for (uint32_t i = 0; i < child_count; i++) {
+        lv_obj_t *child = lv_obj_get_child(obj, (int32_t)i);
+        enable_gesture_bubble_recursive(child);
+    }
+}
+
+static void swipe_nav_event_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_GESTURE) {
+        return;
+    }
+
+    lv_indev_t *indev = lv_indev_active();
+    if (indev == NULL) {
+        return;
+    }
+
+    lv_dir_t dir = lv_indev_get_gesture_dir(indev);
+    lv_obj_t *active_screen = lv_screen_active();
+
+    if (dir == LV_DIR_LEFT && active_screen == ui_scr_main) {
+        lv_screen_load_anim(ui_scr_gauges1, LV_SCR_LOAD_ANIM_MOVE_LEFT, 220, 0, false);
+    } else if (dir == LV_DIR_RIGHT && active_screen == ui_scr_gauges1) {
+        lv_screen_load_anim(ui_scr_main, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 220, 0, false);
+    }
+}
+
+static void setup_swipe_navigation()
+{
+    if (ui_scr_main == NULL || ui_scr_gauges1 == NULL) {
+        return;
+    }
+
+    // Bubble gesture events from all widgets up to the screen-level handler.
+    enable_gesture_bubble_recursive(ui_scr_main);
+    enable_gesture_bubble_recursive(ui_scr_gauges1);
+
+    lv_obj_add_event_cb(ui_scr_main, swipe_nav_event_cb, LV_EVENT_GESTURE, NULL);
+    lv_obj_add_event_cb(ui_scr_gauges1, swipe_nav_event_cb, LV_EVENT_GESTURE, NULL);
+}
+
 static void ui_initialize()
 {
     _lock_acquire(&lvgl_api_lock);
     ui_init();
+    setup_swipe_navigation();
     lv_obj_invalidate(lv_screen_active());
     _lock_release(&lvgl_api_lock);
 }
@@ -345,6 +443,8 @@ static void touch_initialize()
 
     ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tio_handle, &tp_cfg, &touch_handle));
 
+    _lock_acquire(&lvgl_api_lock);
+
     lv_indev_t *indev = lv_indev_create();
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     if (lcd_display != NULL) {
@@ -359,6 +459,8 @@ static void touch_initialize()
     lv_indev_set_scroll_limit(indev, 30);
     lv_indev_set_long_press_time(indev, 500);
     lv_indev_set_read_cb(indev, my_input_read);
+
+    _lock_release(&lvgl_api_lock);
 }
 
 extern "C" void app_main(void)
